@@ -1,0 +1,54 @@
+{
+  "name": "orbiz-screen-share",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local WebRTC screen sharing server",
+  "type": "module",
+  "main": "electron/main.js",
+  "scripts": {
+    "firewall:browser": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/open-browser-webrtc-firewall.ps1",
+    "firewall:turn": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/open-turn-firewall.ps1",
+    "firewall:open": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/open-firewall.ps1",
+    "firewall:close": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/close-firewall.ps1",
+    "turn:docker": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-coturn-docker.ps1",
+    "turn:docker:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-coturn-docker.ps1",
+    "start": "node server.js",
+    "app": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "dependencies": {
+    "node-turn": "^0.0.6",
+    "ws": "^8.18.0"
+  },
+  "overrides": {
+    "node-turn": {
+      "js-yaml": "^3.15.0",
+      "log4js": "^6.9.1"
+    }
+  },
+  "devDependencies": {
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "local.msi.game.room",
+    "productName": "msi game room",
+    "artifactName": "msi-game-room-${version}.${ext}",
+    "files": [
+      "build/**/*",
+      "electron/**/*",
+      "public/**/*",
+      "server.js",
+      "package.json"
+    ],
+    "win": {
+      "icon": "build/blank.ico",
+      "target": [
+        "portable"
+      ]
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

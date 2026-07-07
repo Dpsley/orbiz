@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Screen Share</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <div class="header">
+          <div>
+            <p class="eyebrow">VPN Stream</p>
+            <h1 id="title">Screen Share</h1>
+          </div>
+          <span id="status" class="status">Starting</span>
+        </div>
+
+        <div id="host-controls" class="controls hidden">
+          <button id="start" class="primary" type="button">Start Sharing</button>
+          <button id="stop" class="secondary" type="button" disabled>Stop</button>
+          <button id="copy" class="secondary" type="button">Copy Viewer Link</button>
+        </div>
+
+        <div id="viewer-controls" class="controls hidden">
+          <button id="connect" class="primary" type="button">Connect</button>
+        </div>
+
+        <div id="link-row" class="link-row hidden">
+          <label for="viewer-link">Viewer link</label>
+          <input id="viewer-link" readonly spellcheck="false">
+        </div>
+
+        <div class="video-frame">
+          <video id="video" autoplay playsinline muted></video>
+          <canvas id="stream-canvas"></canvas>
+          <img id="stream-image" alt="">
+          <div id="empty" class="empty">Waiting for stream</div>
+        </div>
+      </section>
+
+      <dialog id="share-dialog" class="share-dialog">
+        <form method="dialog">
+          <h2>Share screen?</h2>
+          <p>Choose the screen in the next system prompt. The viewer link will appear after sharing starts.</p>
+          <div class="dialog-actions">
+            <button id="share-yes" class="primary" value="yes" type="button">Yes</button>
+            <button id="share-cancel" class="secondary" value="cancel" type="button">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+    </main>
+
+    <script type="module" src="/client.js"></script>
+  </body>
+</html>
