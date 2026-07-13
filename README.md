@@ -43,7 +43,7 @@ Useful host URL parameters:
 ?direct=1
 ```
 
-By default, browsers use the bundled TURN relay. Use `direct=1` only to test direct peer-to-peer ICE over the VPN.
+By default, browsers use the bundled TURN relay on UDP/TCP `8153` with relay UDP ports `42000-42050`. Use `direct=1` only to test direct peer-to-peer ICE over the VPN; direct mode can use browser-managed dynamic media ports.
 
 ## Demo app without a console
 
@@ -115,4 +115,4 @@ For a viewer outside your local network, you still need normal network access to
 
 For VPN access, give the viewer the URL with your VPN IP address. The VPN must allow client-to-client traffic. WebRTC media uses browser-managed ICE candidate ports, so opening only TCP `8152` is enough for the page/signaling but may not be enough for media if the firewall blocks the browser's WebRTC traffic.
 
-By default, the app expects a local TURN relay on UDP/TCP `3478` with relay UDP ports `56234-56284`. This keeps the media as a real WebRTC stream while avoiding direct peer-to-peer ICE failures over VPN.
+By default, the app expects a local TURN relay on UDP/TCP `8153` with relay UDP ports `42000-42050`. The default ICE transport policy is `relay`, so normal sharing avoids direct peer-to-peer WebRTC media candidates and uses the configured TURN relay instead.

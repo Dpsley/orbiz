@@ -1,8 +1,8 @@
 param(
   [string]$HostIp = "15.8.0.2",
-  [int]$TurnPort = 3478,
-  [int]$RelayMinPort = 56234,
-  [int]$RelayMaxPort = 56284,
+  [int]$TurnPort = 8153,
+  [int]$RelayMinPort = 42000,
+  [int]$RelayMaxPort = 42050,
   [string]$Username = "orbiz",
   [string]$Password = "orbiz-turn"
 )

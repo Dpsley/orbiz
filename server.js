@@ -13,9 +13,9 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const publicDir = join(__dirname, "public");
 const port = Number.parseInt(process.env.PORT || "8152", 10);
 const shareHost = process.env.SHARE_HOST || "";
-const turnPort = Number.parseInt(process.env.TURN_PORT || "3478", 10);
-const turnMinPort = Number.parseInt(process.env.TURN_MIN_PORT || "56234", 10);
-const turnMaxPort = Number.parseInt(process.env.TURN_MAX_PORT || "56284", 10);
+const turnPort = Number.parseInt(process.env.TURN_PORT || "8153", 10);
+const turnMinPort = Number.parseInt(process.env.TURN_MIN_PORT || "42000", 10);
+const turnMaxPort = Number.parseInt(process.env.TURN_MAX_PORT || "42050", 10);
 const turnUsername = process.env.TURN_USERNAME || "orbiz";
 const turnPassword = process.env.TURN_PASSWORD || "orbiz-turn";
 const bundledTurn = process.env.BUNDLED_TURN === "1";
@@ -66,7 +66,7 @@ const server = createServer(async (req, res) => {
         hostUrl: `http://localhost:${port}/host?room=${encodeURIComponent(room)}`,
         viewerUrl: viewerUrls[0] || `http://localhost:${port}/view?room=${encodeURIComponent(room)}`,
         viewerUrls,
-        iceTransportPolicy: process.env.ICE_TRANSPORT_POLICY || "all",
+        iceTransportPolicy: process.env.ICE_TRANSPORT_POLICY || "relay",
         iceServers: getIceServers()
       });
       return;
