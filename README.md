@@ -71,6 +71,40 @@ dist\msi-game-room-1.0.0.exe
 
 Screen selection cannot be accepted silently or remembered between launches. Browsers and Electron require a user action and a fresh permission prompt for each `getDisplayMedia` capture.
 
+## Codex screen assistant
+
+The Electron app also opens a protected overlay window that is about one quarter of the screen area. On Windows, Electron content protection uses `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`, so capture tools that honor the Windows capture APIs should not include this overlay. This is not DRM and is not a guarantee against every recording method.
+
+The overlay is click-through and non-focusable: mouse clicks go to the browser or app underneath it, and the active browser tab keeps focus. Hide or show the overlay with `Alt+T`. Move it with `Ctrl+Alt+Arrow`. Scroll the assistant answer with `Ctrl+Alt` for down and `Ctrl+Shift` for up; holding the chord repeats the scroll.
+
+Assistant answers are rendered as a small safe Markdown subset: headings, lists, blockquotes, fenced code blocks, inline code, bold text, simplified LaTeX-style math blocks, and Markdown images. Local Windows or WSL image files referenced in the answer are converted to data URLs before display when they are under the overlay image size limit.
+
+Configure the prompt in `.env`:
+
+```text
+CODEX_SCREEN_PROMPT=Analyze the screenshot and answer briefly.
+CODEX_WSL_DISTRO=
+CODEX_WSL_CWD=~
+CODEX_SCREEN_DOUBLE_SHIFT_MS=450
+CODEX_SCREEN_TIMEOUT_MS=300000
+```
+
+Run the desktop app:
+
+```powershell
+npm run app
+```
+
+Press Shift twice quickly. The app captures the display under the cursor, saves a temporary PNG, converts the path for WSL, and runs:
+
+```text
+wsl.exe --cd <CODEX_WSL_CWD> --exec bash -lc "timeout --kill-after=5s <seconds>s codex --ask-for-approval never exec --sandbox read-only --skip-git-repo-check --color never --output-last-message <answer-file> --image <screenshot> -- <CODEX_SCREEN_PROMPT> </dev/null"
+```
+
+Codex CLI must already be installed and logged in inside WSL. If your default WSL distribution is not the one with Codex installed, set `CODEX_WSL_DISTRO` to that distribution name.
+
+Electron is pinned to `36.3.1` because newer Electron builds have public Windows capture-protection regressions on some Windows 10/11 builds, including Windows 10 build `19045`.
+
 ## Open port 8152
 
 Run PowerShell as Administrator, then:

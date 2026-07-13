@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Codex Screen</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: rgb(17 22 27 / 0.18);
+        --panel: rgb(24 33 41 / 0.58);
+        --text: #8cffb2;
+        --muted: #62bf86;
+        --line: rgb(95 116 128 / 0.48);
+        --accent: #8cffb2;
+        --danger: #e06f6f;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        backdrop-filter: blur(2px);
+      }
+
+      .shell {
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        overflow: hidden;
+      }
+
+      .header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px 20px 14px;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .eyebrow,
+      h1,
+      .meta {
+        margin: 0;
+      }
+
+      .eyebrow {
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin-top: 4px;
+        font-size: 21px;
+        line-height: 1.15;
+        letter-spacing: 0;
+      }
+
+      .status {
+        min-width: 118px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 7px 10px;
+        background: rgb(7 10 13 / 0.34);
+        color: var(--accent);
+        text-align: center;
+        white-space: nowrap;
+      }
+
+      body.error .status {
+        color: var(--danger);
+      }
+
+      .answer {
+        min-width: 0;
+        min-height: 0;
+        overflow: auto;
+        padding: 18px 20px;
+        color: var(--text);
+        font-size: 15px;
+        line-height: 1.55;
+        overflow-wrap: anywhere;
+        scrollbar-color: var(--accent) rgb(7 10 13 / 0.25);
+        scrollbar-width: thin;
+      }
+
+      .answer:empty::before {
+        content: "Waiting.";
+        color: var(--muted);
+      }
+
+      .answer > *:first-child {
+        margin-top: 0;
+      }
+
+      .answer > *:last-child {
+        margin-bottom: 0;
+      }
+
+      .answer p,
+      .answer ul,
+      .answer ol,
+      .answer pre,
+      .answer blockquote,
+      .answer figure {
+        margin: 0 0 13px;
+      }
+
+      .answer h1,
+      .answer h2,
+      .answer h3,
+      .answer h4 {
+        margin: 16px 0 9px;
+        color: var(--accent);
+        font-size: 17px;
+        line-height: 1.25;
+        letter-spacing: 0;
+      }
+
+      .answer h1 {
+        font-size: 19px;
+      }
+
+      .answer ul,
+      .answer ol {
+        padding-left: 22px;
+      }
+
+      .answer li {
+        margin: 5px 0;
+      }
+
+      .answer pre {
+        overflow: auto;
+        padding: 12px 13px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgb(3 8 10 / 0.42);
+        color: var(--text);
+        white-space: pre;
+      }
+
+      .answer code {
+        border: 1px solid rgb(95 116 128 / 0.36);
+        border-radius: 5px;
+        padding: 1px 5px;
+        background: rgb(3 8 10 / 0.34);
+        color: var(--accent);
+        font-family: "Cascadia Code", "Consolas", ui-monospace, monospace;
+        font-size: 0.92em;
+      }
+
+      .answer pre code {
+        border: 0;
+        padding: 0;
+        background: transparent;
+        white-space: inherit;
+      }
+
+      .answer strong {
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      .answer blockquote {
+        padding: 9px 12px;
+        border-left: 3px solid var(--accent);
+        background: rgb(7 10 13 / 0.2);
+      }
+
+      .answer .math-block {
+        display: block;
+        overflow-x: auto;
+        margin: 0 0 13px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgb(3 8 10 / 0.36);
+        color: var(--accent);
+        font-family: "Cambria Math", "Times New Roman", serif;
+        font-size: 17px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+      }
+
+      .answer .math-inline {
+        color: var(--accent);
+        font-family: "Cambria Math", "Times New Roman", serif;
+      }
+
+      .answer figure {
+        display: block;
+      }
+
+      .answer img {
+        display: block;
+        max-width: 100%;
+        max-height: 58vh;
+        object-fit: contain;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgb(3 8 10 / 0.42);
+      }
+
+      .answer figcaption {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .footer {
+        min-height: 34px;
+        display: flex;
+        align-items: center;
+        padding: 8px 20px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+        background: rgb(7 10 13 / 0.22);
+      }
+
+      .meta {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="shell">
+      <header class="header">
+        <div>
+          <p class="eyebrow">Codex</p>
+          <h1>Screen assistant</h1>
+        </div>
+        <span id="status" class="status">Ready</span>
+      </header>
+      <main id="answer" class="answer"></main>
+      <footer class="footer">
+        <p id="meta" class="meta"></p>
+      </footer>
+    </section>
+
+    <script>
+      const statusEl = document.querySelector("#status");
+      const answerEl = document.querySelector("#answer");
+      const metaEl = document.querySelector("#meta");
+
+      window.__setAssistantState = (payload = {}) => {
+        document.body.classList.toggle("error", Boolean(payload.error));
+        statusEl.textContent = payload.status || "Ready";
+        metaEl.textContent = payload.meta || "";
+        renderAnswer(payload.message || "", payload.imageAssets || {});
+      };
+
+      window.__scrollAssistant = (direction = 1) => {
+        return scrollElement(answerEl, direction);
+      };
+
+      function scrollElement(element, direction = 1) {
+        const target = element || document.scrollingElement || document.documentElement;
+        const amount = Math.max(160, Math.floor((target.clientHeight || window.innerHeight) * 0.85));
+        const maxTop = Math.max(0, target.scrollHeight - target.clientHeight);
+        const before = target.scrollTop;
+        const nextTop = Math.max(0, Math.min(maxTop, before + Number(direction) * amount));
+
+        target.scrollTop = nextTop;
+
+        if (target.scrollTop === before && document.scrollingElement && document.scrollingElement !== target) {
+          const fallback = document.scrollingElement;
+          const fallbackMaxTop = Math.max(0, fallback.scrollHeight - fallback.clientHeight);
+          fallback.scrollTop = Math.max(0, Math.min(fallbackMaxTop, fallback.scrollTop + Number(direction) * amount));
+        }
+
+        return {
+          before,
+          after: target.scrollTop,
+          clientHeight: target.clientHeight,
+          scrollHeight: target.scrollHeight
+        };
+      }
+
+      function renderAnswer(value, imageAssets) {
+        answerEl.replaceChildren();
+
+        const text = normalizeMessage(value);
+        if (!text.trim()) {
+          return;
+        }
+
+        const lines = text.split("\n");
+        let paragraphLines = [];
+        let listEl = null;
+        let listType = "";
+
+        const flushParagraph = () => {
+          if (!paragraphLines.length) {
+            return;
+          }
+
+          const p = document.createElement("p");
+          renderInline(p, paragraphLines.join("\n"), imageAssets);
+          answerEl.append(p);
+          paragraphLines = [];
+        };
+
+        const flushList = () => {
+          if (listEl) {
+            answerEl.append(listEl);
+            listEl = null;
+            listType = "";
+          }
+        };
+
+        for (let index = 0; index < lines.length; index += 1) {
+          const line = lines[index];
+          const trimmed = line.trim();
+
+          if (/^```/.test(trimmed)) {
+            flushParagraph();
+            flushList();
+            const codeLines = [];
+            index += 1;
+
+            while (index < lines.length && !/^```/.test(lines[index].trim())) {
+              codeLines.push(lines[index]);
+              index += 1;
+            }
+
+            const pre = document.createElement("pre");
+            const code = document.createElement("code");
+            code.textContent = codeLines.join("\n");
+            pre.append(code);
+            answerEl.append(pre);
+            continue;
+          }
+
+          if (!trimmed) {
+            flushParagraph();
+            flushList();
+            continue;
+          }
+
+          if (trimmed === "\\[" || trimmed === "$$") {
+            flushParagraph();
+            flushList();
+            const closing = trimmed === "\\[" ? "\\]" : "$$";
+            const mathLines = [];
+            index += 1;
+
+            while (index < lines.length && lines[index].trim() !== closing) {
+              mathLines.push(lines[index]);
+              index += 1;
+            }
+
+            answerEl.append(createMathBlock(mathLines.join("\n")));
+            continue;
+          }
+
+          const sameLineMath = /^(?:\\\[(.*)\\\]|\$\$(.*)\$\$)$/.exec(trimmed);
+          if (sameLineMath) {
+            flushParagraph();
+            flushList();
+            answerEl.append(createMathBlock(sameLineMath[1] || sameLineMath[2] || ""));
+            continue;
+          }
+
+          const headingMatch = /^(#{1,4})\s+(.+)$/.exec(trimmed);
+          if (headingMatch) {
+            flushParagraph();
+            flushList();
+            const heading = document.createElement(`h${headingMatch[1].length}`);
+            renderInline(heading, headingMatch[2], imageAssets);
+            answerEl.append(heading);
+            continue;
+          }
+
+          const quoteMatch = /^>\s?(.*)$/.exec(trimmed);
+          if (quoteMatch) {
+            flushParagraph();
+            flushList();
+            const blockquote = document.createElement("blockquote");
+            renderInline(blockquote, quoteMatch[1], imageAssets);
+            answerEl.append(blockquote);
+            continue;
+          }
+
+          const unorderedMatch = /^[-*]\s+(.+)$/.exec(trimmed);
+          const orderedMatch = /^\d+[.)]\s+(.+)$/.exec(trimmed);
+          if (unorderedMatch || orderedMatch) {
+            flushParagraph();
+            const nextType = unorderedMatch ? "ul" : "ol";
+
+            if (!listEl || listType !== nextType) {
+              flushList();
+              listEl = document.createElement(nextType);
+              listType = nextType;
+            }
+
+            const li = document.createElement("li");
+            renderInline(li, (unorderedMatch || orderedMatch)[1], imageAssets);
+            listEl.append(li);
+            continue;
+          }
+
+          flushList();
+          paragraphLines.push(line);
+        }
+
+        flushParagraph();
+        flushList();
+        answerEl.scrollTop = 0;
+      }
+
+      function normalizeMessage(value) {
+        let text = String(value ?? "").replace(/\r\n/g, "\n");
+        const trimmed = text.trim();
+
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (typeof parsed === "string") {
+              text = parsed;
+            } else if (parsed && typeof parsed === "object") {
+              text = parsed.answer || parsed.message || parsed.content || text;
+            }
+          } catch {
+            // Leave non-JSON text untouched.
+          }
+        } else if (trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (typeof parsed === "string") {
+              text = parsed;
+            }
+          } catch {
+            // Leave non-JSON text untouched.
+          }
+        }
+
+        if (/\\(?:r\\n|n|r|t|"|\\|u[0-9a-fA-F]{4})/.test(text)) {
+          text = decodeKnownEscapes(text);
+        }
+
+        return String(text).replace(/\r\n/g, "\n");
+      }
+
+      function renderInline(parent, text, imageAssets) {
+        const tokenPattern = /!\[([^\]]*)]\(([^)\n]+)\)|`([^`]+)`|\*\*([^*]+)\*\*|\\\((.+?)\\\)/g;
+        let cursor = 0;
+        let match;
+
+        while ((match = tokenPattern.exec(text))) {
+          appendTextWithImages(parent, text.slice(cursor, match.index), imageAssets);
+
+          if (match[2]) {
+            appendImage(parent, match[1] || "", match[2], imageAssets);
+          } else if (match[3]) {
+            const code = document.createElement("code");
+            code.textContent = match[3];
+            parent.append(code);
+          } else if (match[4]) {
+            const strong = document.createElement("strong");
+            strong.textContent = match[4];
+            parent.append(strong);
+          } else if (match[5]) {
+            const span = document.createElement("span");
+            span.className = "math-inline";
+            span.textContent = formatMath(match[5]);
+            parent.append(span);
+          }
+
+          cursor = tokenPattern.lastIndex;
+        }
+
+        appendTextWithImages(parent, text.slice(cursor), imageAssets);
+      }
+
+      function appendTextWithImages(parent, text, imageAssets) {
+        const imagePattern = /(?:https?:\/\/[^\s)]+?\.(?:png|jpe?g|gif|webp|bmp|svg)(?:\?[^\s)]*)?|data:image\/[A-Za-z0-9.+-]+;base64,[A-Za-z0-9+/=]+|file:\/\/\/?[^\s)]+?\.(?:png|jpe?g|gif|webp|bmp|svg)|[A-Za-z]:\\[^\r\n]+?\.(?:png|jpe?g|gif|webp|bmp|svg)|\/mnt\/[a-zA-Z]\/[^\s)]+?\.(?:png|jpe?g|gif|webp|bmp|svg)|\/(?:home|tmp|var)\/[^\s)]+?\.(?:png|jpe?g|gif|webp|bmp|svg))/gi;
+        let cursor = 0;
+        let match;
+
+        while ((match = imagePattern.exec(text))) {
+          appendText(parent, text.slice(cursor, match.index));
+          appendImage(parent, "", match[0], imageAssets);
+          cursor = imagePattern.lastIndex;
+        }
+
+        appendText(parent, text.slice(cursor));
+      }
+
+      function appendText(parent, text) {
+        if (text) {
+          parent.append(document.createTextNode(text));
+        }
+      }
+
+      function createMathBlock(value) {
+        const block = document.createElement("div");
+        block.className = "math-block";
+        block.textContent = formatMath(value);
+        return block;
+      }
+
+      function formatMath(value) {
+        let text = String(value || "").trim();
+
+        for (let index = 0; index < 4; index += 1) {
+          const before = text;
+          text = text.replace(/\\frac\s*{([^{}]+)}\s*{([^{}]+)}/g, "($1)/($2)");
+          if (text === before) {
+            break;
+          }
+        }
+
+        text = text
+          .replace(/\\left|\\right/g, "")
+          .replace(/\\cdot/g, "·")
+          .replace(/\\times/g, "×")
+          .replace(/\\div/g, "÷")
+          .replace(/\\qquad/g, "    ")
+          .replace(/\\quad/g, "  ")
+          .replace(/\\text\s*{([^{}]+)}/g, "$1")
+          .replace(/\\log/g, "log")
+          .replace(/\\ln/g, "ln")
+          .replace(/\\sqrt\s*{([^{}]+)}/g, "√($1)")
+          .replace(/\\leq/g, "≤")
+          .replace(/\\geq/g, "≥")
+          .replace(/\\neq/g, "≠")
+          .replace(/\\approx/g, "≈")
+          .replace(/\\infty/g, "∞")
+          .replace(/\\pi/g, "π")
+          .replace(/\\,/g, " ")
+          .replace(/\\[a-zA-Z]+/g, "")
+          .replace(/_\{([^{}]+)}/g, (_match, value) => toSubscript(value))
+          .replace(/\^\{([^{}]+)}/g, (_match, value) => toSuperscript(value))
+          .replace(/_([0-9+-]+)/g, (_match, value) => toSubscript(value))
+          .replace(/\^([0-9+-]+)/g, (_match, value) => toSuperscript(value))
+          .replace(/[{}]/g, "")
+          .replace(/\s+\n/g, "\n")
+          .replace(/\n\s+/g, "\n")
+          .replace(/[ \t]{2,}/g, " ")
+          .trim();
+
+        return text || String(value || "").trim();
+      }
+
+      function toSubscript(value) {
+        const map = { "0": "₀", "1": "₁", "2": "₂", "3": "₃", "4": "₄", "5": "₅", "6": "₆", "7": "₇", "8": "₈", "9": "₉", "+": "₊", "-": "₋" };
+        return String(value).replace(/[0-9+-]/g, (char) => map[char] || char);
+      }
+
+      function toSuperscript(value) {
+        const map = { "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹", "+": "⁺", "-": "⁻" };
+        return String(value).replace(/[0-9+-]/g, (char) => map[char] || char);
+      }
+
+      function decodeKnownEscapes(value) {
+        return String(value)
+          .replace(/\\u([0-9a-fA-F]{4})/g, (_match, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+          .replace(/\\r\\n/g, "\n")
+          .replace(/\\n/g, "\n")
+          .replace(/\\r/g, "\r")
+          .replace(/\\t/g, "\t")
+          .replace(/\\"/g, "\"")
+          .replace(/\\\\/g, "\\");
+      }
+
+      function appendImage(parent, alt, rawSource, imageAssets) {
+        const source = normalizeImageSource(rawSource);
+        const src = imageAssets[rawSource] || imageAssets[source] || source;
+
+        if (!isAllowedImageSrc(src)) {
+          appendText(parent, rawSource);
+          return;
+        }
+
+        const figure = document.createElement("figure");
+        const img = document.createElement("img");
+        img.alt = alt || "Codex image";
+        img.src = src;
+        img.loading = "lazy";
+        img.decoding = "async";
+        figure.append(img);
+
+        if (alt) {
+          const caption = document.createElement("figcaption");
+          caption.textContent = alt;
+          figure.append(caption);
+        }
+
+        parent.append(figure);
+      }
+
+      function normalizeImageSource(source) {
+        let value = String(source || "").trim();
+
+        if (value.startsWith("<") && value.includes(">")) {
+          value = value.slice(1, value.indexOf(">"));
+        } else {
+          const titleMatch = /^(\S+)(?:\s+["'][^"']*["'])?$/.exec(value);
+          if (titleMatch) {
+            value = titleMatch[1];
+          }
+        }
+
+        return value
+          .replace(/^["']|["']$/g, "")
+          .replace(/[),.;:]+$/g, "")
+          .trim();
+      }
+
+      function isAllowedImageSrc(src) {
+        return /^(?:data:image\/|https?:\/\/|file:\/\/)/i.test(String(src || ""));
+      };
+    </script>
+  </body>
+</html>

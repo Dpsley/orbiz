@@ -27,7 +27,7 @@
     }
   },
   "devDependencies": {
-    "electron": "^39.2.7",
+    "electron": "36.3.1",
     "electron-builder": "^26.0.12"
   },
   "build": {
@@ -40,6 +40,9 @@
       "public/**/*",
       "server.js",
       "package.json"
+    ],
+    "asarUnpack": [
+      "electron/watch-double-shift.ps1"
     ],
     "win": {
       "icon": "build/blank.ico",
