@@ -17,6 +17,7 @@
     "dist": "electron-builder --win portable"
   },
   "dependencies": {
+    "katex": "^0.16.47",
     "node-turn": "^0.0.6",
     "ws": "^8.18.0"
   },

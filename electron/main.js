@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, desktopCapturer, dialog, globalShortcut, screen, session } from "electron";
 import { execFile, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -31,6 +31,8 @@ const codexScreenPrompt = (process.env.CODEX_SCREEN_PROMPT || process.env.CODE_S
 const codexWslDistro = (process.env.CODEX_WSL_DISTRO || "").trim();
 const codexWslCwd = (process.env.CODEX_WSL_CWD || "~").trim() || "~";
 const codexCommand = (process.env.CODEX_WSL_CODEX_BIN || "codex").trim() || "codex";
+const codexScreenModel = (process.env.CODEX_SCREEN_MODEL || "gpt-5.6-sol").trim() || "gpt-5.6-sol";
+const codexScreenReasoningEffort = (process.env.CODEX_SCREEN_REASONING_EFFORT || "high").trim() || "high";
 const codexTimeoutMs = clampNumber(Number.parseInt(process.env.CODEX_SCREEN_TIMEOUT_MS || "300000", 10), 10_000, 600_000, 300_000);
 const doubleShiftMs = clampNumber(Number.parseInt(process.env.CODEX_SCREEN_DOUBLE_SHIFT_MS || "450", 10), 200, 1500, 450);
 const overlayEnabled = process.env.CODEX_SCREEN_OVERLAY !== "0";
@@ -245,7 +247,7 @@ async function createOverlayWindow() {
     updateOverlay({
       status: "Ready",
       message: codexScreenPrompt ? "Waiting." : getMissingPromptMessage(),
-      meta: codexScreenPrompt ? "" : getDotEnvMeta()
+      meta: codexScreenPrompt ? getCodexSettingsMeta() : getDotEnvMeta()
     });
   });
 
@@ -479,7 +481,7 @@ async function prepareOverlayPayload(payload) {
   const imageAssets = {};
 
   for (const source of imageSources) {
-    const resolved = await resolveOverlayImageSource(source);
+    const resolved = await resolveOverlayImageSource(source, payload.imageBaseDir);
     if (resolved) {
       imageAssets[source] = resolved;
       imageAssets[normalizeImageSource(source)] = resolved;
@@ -536,7 +538,7 @@ function normalizeImageSource(source) {
     .trim();
 }
 
-async function resolveOverlayImageSource(source) {
+async function resolveOverlayImageSource(source, imageBaseDir = "") {
   const normalized = normalizeImageSource(source);
 
   if (!normalized) {
@@ -552,11 +554,41 @@ async function resolveOverlayImageSource(source) {
     return readWindowsImageAsDataUrl(windowsPath);
   }
 
+  const relativeWindowsPath = resolveRelativeOverlayImagePath(normalized, imageBaseDir);
+  if (relativeWindowsPath) {
+    return readWindowsImageAsDataUrl(relativeWindowsPath);
+  }
+
   if (normalized.startsWith("/")) {
     return readWslImageAsDataUrl(normalized);
   }
 
   return "";
+}
+
+function resolveRelativeOverlayImagePath(source, imageBaseDir) {
+  if (!imageBaseDir || !source || source.startsWith("/") || /^[A-Za-z]:[\\/]/.test(source)) {
+    return "";
+  }
+
+  try {
+    const cleanSource = decodeURIComponent(source.split(/[?#]/)[0]).replace(/\//g, "\\");
+    if (!/\.(?:png|jpe?g|gif|webp|bmp|svg)$/i.test(cleanSource)) {
+      return "";
+    }
+
+    const baseDir = resolve(imageBaseDir);
+    const targetPath = resolve(baseDir, cleanSource);
+    const relativePath = relative(baseDir, targetPath);
+
+    if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+      return "";
+    }
+
+    return targetPath;
+  } catch {
+    return "";
+  }
 }
 
 function imageSourceToWindowsPath(source) {
@@ -591,11 +623,29 @@ function readWindowsImageAsDataUrl(windowsPath) {
       return "";
     }
 
-    const data = readFileSync(windowsPath).toString("base64");
-    return `data:${getImageMimeType(windowsPath)};base64,${data}`;
+    const file = readFileSync(windowsPath);
+    const mimeType = getImageMimeType(windowsPath);
+    if (mimeType === "image/svg+xml" && !isSafeOverlaySvg(file.toString("utf8"))) {
+      return "";
+    }
+
+    return `data:${mimeType};base64,${file.toString("base64")}`;
   } catch {
     return "";
   }
+}
+
+function isSafeOverlaySvg(value) {
+  const svg = String(value || "");
+  if (!/<svg(?:\s|>)/i.test(svg)) {
+    return false;
+  }
+
+  return !/<(?:script|foreignObject|iframe|object|embed|audio|video|canvas|link|style)(?:\s|\/?>)/i.test(svg)
+    && !/\son[a-z][a-z0-9_-]*\s*=/i.test(svg)
+    && !/(?:href|xlink:href)\s*=\s*["'](?!#|data:image\/)[^"']+/i.test(svg)
+    && !/url\s*\(\s*["']?(?!#|data:image\/)/i.test(svg)
+    && !/<!ENTITY/i.test(svg);
 }
 
 async function readWslImageAsDataUrl(wslPath) {
@@ -784,14 +834,15 @@ async function handleDoubleShift() {
     updateOverlay({
       status: "Codex",
       message: "Screenshot sent. Waiting for answer...",
-      meta: screenshotPath
+      meta: getCodexSettingsMeta()
     });
 
     const answer = await runCodexForScreenshot(screenshotPath);
     updateOverlay({
       status: "Answer",
       message: answer || "Codex returned an empty response.",
-      meta: new Date().toLocaleTimeString()
+      imageBaseDir: dirname(screenshotPath),
+      meta: `${getCodexSettingsMeta()} · ${new Date().toLocaleTimeString()}`
     });
   } catch (error) {
     updateOverlay({
@@ -832,16 +883,30 @@ async function captureActiveDisplay() {
 
 async function runCodexForScreenshot(screenshotPath) {
   const wslImagePath = await toWslPath(screenshotPath);
+  const wslRunDir = await toWslPath(dirname(screenshotPath));
   const answerPath = screenshotPath.replace(/\.png$/i, ".answer.txt");
   const wslAnswerPath = await toWslPath(answerPath);
+  const graphPath = screenshotPath.replace(/\.png$/i, ".graph.svg");
+  const wslGraphPath = await toWslPath(graphPath);
+  const effectivePrompt = buildCodexScreenPrompt(wslGraphPath);
   const codexArgs = [
     codexCommand,
     "--ask-for-approval",
     "never",
     "exec",
     "--sandbox",
-    "read-only",
+    "workspace-write",
     "--skip-git-repo-check",
+    "--cd",
+    wslRunDir,
+    "--model",
+    codexScreenModel,
+    "--config",
+    `model_reasoning_effort=${JSON.stringify(codexScreenReasoningEffort)}`,
+    "--config",
+    "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+    "--config",
+    "sandbox_workspace_write.exclude_slash_tmp=true",
     "--color",
     "never",
     "--output-last-message",
@@ -849,7 +914,7 @@ async function runCodexForScreenshot(screenshotPath) {
     "--image",
     wslImagePath,
     "--",
-    codexScreenPrompt
+    effectivePrompt
   ];
   const timeoutSeconds = Math.max(1, Math.ceil(codexTimeoutMs / 1000));
   const shellCommand = `timeout --kill-after=5s ${timeoutSeconds}s ${codexArgs.map(shellQuote).join(" ")} </dev/null`;
@@ -877,7 +942,7 @@ async function runCodexForScreenshot(screenshotPath) {
       updateOverlay({
         status: "Codex",
         message: `Waiting for answer...\n\n${progress}`,
-        meta: screenshotPath
+        meta: getCodexSettingsMeta()
       });
     }
   });
@@ -1092,10 +1157,6 @@ function normalizeCodexAnswer(value) {
       }
     }
 
-    if (/\\(?:r\\n|n|r|t|"|\\|u[0-9a-fA-F]{4})/.test(text)) {
-      text = decodeKnownEscapes(text);
-    }
-
     text = repairMojibake(text);
 
     if (text === before) {
@@ -1104,17 +1165,6 @@ function normalizeCodexAnswer(value) {
   }
 
   return text.replace(/\r\n/g, "\n").trim();
-}
-
-function decodeKnownEscapes(value) {
-  return String(value)
-    .replace(/\\u([0-9a-fA-F]{4})/g, (_match, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
-    .replace(/\\r\\n/g, "\n")
-    .replace(/\\n/g, "\n")
-    .replace(/\\r/g, "\r")
-    .replace(/\\t/g, "\t")
-    .replace(/\\"/g, "\"")
-    .replace(/\\\\/g, "\\");
 }
 
 function repairMojibake(value) {
@@ -1179,6 +1229,22 @@ function mojibakeScore(text) {
 
 function getMissingPromptMessage() {
   return "Set CODEX_SCREEN_PROMPT in .env.";
+}
+
+function buildCodexScreenPrompt(graphPath) {
+  return [
+    codexScreenPrompt,
+    "Если для полного решения нужен график, обязательно построй его и добавь в финальный ответ как изображение.",
+    `Создай один самодостаточный SVG-файл по точному пути: ${graphPath}`,
+    "Для графика функции вычисляй координаты точек программно с помощью Python, а не рисуй кривую приблизительно вручную. Перед ответом проверь по формуле минимум три характерные точки, масштаб осей, нули, экстремумы, разрывы и асимптоты, если они есть.",
+    "SVG должен математически соответствовать решению и быть без JavaScript, foreignObject, внешних ссылок и внешних ресурсов. Сделай прозрачный или темный фон, контрастные оси, подписи, деления, отмеченные точки и линии так, чтобы график читался в окне примерно 800x500.",
+    `После объяснения вставь отдельной строкой ровно эту Markdown-ссылку: ![График](<${graphPath}>)`,
+    "Не вставляй исходный код SVG или data URI в ответ. Если график для решения не нужен, не создавай файл и не добавляй ссылку."
+  ].join("\n\n");
+}
+
+function getCodexSettingsMeta() {
+  return `${codexScreenModel} · reasoning ${codexScreenReasoningEffort}`;
 }
 
 function getDotEnvMeta() {

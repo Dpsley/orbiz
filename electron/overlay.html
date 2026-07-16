@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Codex Screen</title>
+    <link rel="stylesheet" href="../node_modules/katex/dist/katex.min.css">
     <style>
       :root {
         color-scheme: dark;
@@ -190,20 +191,25 @@
         display: block;
         overflow-x: auto;
         margin: 0 0 13px;
-        padding: 10px 12px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: rgb(3 8 10 / 0.36);
+        padding: 8px 4px;
         color: var(--accent);
-        font-family: "Cambria Math", "Times New Roman", serif;
         font-size: 17px;
         line-height: 1.45;
-        white-space: pre-wrap;
+        text-align: left;
       }
 
       .answer .math-inline {
         color: var(--accent);
-        font-family: "Cambria Math", "Times New Roman", serif;
+      }
+
+      .answer .katex {
+        color: inherit;
+        font-size: 1.08em;
+      }
+
+      .answer .math-block .katex-display {
+        margin: 0;
+        text-align: left;
       }
 
       .answer figure {
@@ -218,6 +224,11 @@
         border: 1px solid var(--line);
         border-radius: 8px;
         background: rgb(3 8 10 / 0.42);
+      }
+
+      .answer figure.graph img {
+        width: min(100%, 800px);
+        max-height: none;
       }
 
       .answer figcaption {
@@ -260,6 +271,7 @@
       </footer>
     </section>
 
+    <script src="../node_modules/katex/dist/katex.min.js"></script>
     <script>
       const statusEl = document.querySelector("#status");
       const answerEl = document.querySelector("#answer");
@@ -457,10 +469,6 @@
           }
         }
 
-        if (/\\(?:r\\n|n|r|t|"|\\|u[0-9a-fA-F]{4})/.test(text)) {
-          text = decodeKnownEscapes(text);
-        }
-
         text = repairMojibake(text);
 
         return String(text).replace(/\r\n/g, "\n");
@@ -487,7 +495,7 @@
           } else if (match[5]) {
             const span = document.createElement("span");
             span.className = "math-inline";
-            span.textContent = formatMath(match[5]);
+            renderMath(span, match[5], false);
             parent.append(span);
           }
 
@@ -520,8 +528,28 @@
       function createMathBlock(value) {
         const block = document.createElement("div");
         block.className = "math-block";
-        block.textContent = formatMath(value);
+        renderMath(block, value, true);
         return block;
+      }
+
+      function renderMath(target, value, displayMode) {
+        const source = String(value || "").trim();
+
+        if (window.katex?.render) {
+          try {
+            window.katex.render(source, target, {
+              displayMode,
+              throwOnError: false,
+              strict: "ignore",
+              trust: false
+            });
+            return;
+          } catch {
+            // Fall back to readable plain text for unsupported expressions.
+          }
+        }
+
+        target.textContent = formatMath(source);
       }
 
       function formatMath(value) {
@@ -575,17 +603,6 @@
       function toSuperscript(value) {
         const map = { "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹", "+": "⁺", "-": "⁻" };
         return String(value).replace(/[0-9+-]/g, (char) => map[char] || char);
-      }
-
-      function decodeKnownEscapes(value) {
-        return String(value)
-          .replace(/\\u([0-9a-fA-F]{4})/g, (_match, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
-          .replace(/\\r\\n/g, "\n")
-          .replace(/\\n/g, "\n")
-          .replace(/\\r/g, "\r")
-          .replace(/\\t/g, "\t")
-          .replace(/\\"/g, "\"")
-          .replace(/\\\\/g, "\\");
       }
 
       function repairMojibake(value) {
@@ -663,6 +680,10 @@
         img.loading = "lazy";
         img.decoding = "async";
         figure.append(img);
+
+        if (/(?:^|\s)(?:graph|plot)(?:\s|$)|график/i.test(alt)) {
+          figure.classList.add("graph");
+        }
 
         if (alt) {
           const caption = document.createElement("figcaption");
