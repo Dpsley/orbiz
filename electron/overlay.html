@@ -432,7 +432,7 @@
       }
 
       function normalizeMessage(value) {
-        let text = String(value ?? "").replace(/\r\n/g, "\n");
+        let text = repairMojibake(String(value ?? "").replace(/\r\n/g, "\n"));
         const trimmed = text.trim();
 
         if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
@@ -460,6 +460,8 @@
         if (/\\(?:r\\n|n|r|t|"|\\|u[0-9a-fA-F]{4})/.test(text)) {
           text = decodeKnownEscapes(text);
         }
+
+        text = repairMojibake(text);
 
         return String(text).replace(/\r\n/g, "\n");
       }
@@ -584,6 +586,65 @@
           .replace(/\\t/g, "\t")
           .replace(/\\"/g, "\"")
           .replace(/\\\\/g, "\\");
+      }
+
+      function repairMojibake(value) {
+        const text = String(value || "");
+
+        if (!looksLikeMojibake(text)) {
+          return text;
+        }
+
+        try {
+          const reverseMap = getWindows1251ReverseMap();
+          const bytes = [];
+
+          for (const char of text) {
+            const code = char.codePointAt(0);
+
+            if (code <= 0x7f) {
+              bytes.push(code);
+            } else if (reverseMap.has(char)) {
+              bytes.push(reverseMap.get(char));
+            } else {
+              return text;
+            }
+          }
+
+          const decoded = new TextDecoder("utf-8").decode(Uint8Array.from(bytes));
+          return looksMoreReadable(decoded, text) ? decoded : text;
+        } catch {
+          return text;
+        }
+      }
+
+      let windows1251ReverseMap;
+
+      function getWindows1251ReverseMap() {
+        if (windows1251ReverseMap) {
+          return windows1251ReverseMap;
+        }
+
+        const decoder = new TextDecoder("windows-1251");
+        windows1251ReverseMap = new Map();
+
+        for (let byte = 0; byte <= 255; byte += 1) {
+          windows1251ReverseMap.set(decoder.decode(Uint8Array.of(byte)), byte);
+        }
+
+        return windows1251ReverseMap;
+      }
+
+      function looksLikeMojibake(text) {
+        return mojibakeScore(text) >= 2;
+      }
+
+      function looksMoreReadable(candidate, original) {
+        return /[А-Яа-яЁё]/.test(candidate) && mojibakeScore(candidate) < mojibakeScore(original);
+      }
+
+      function mojibakeScore(text) {
+        return (String(text).match(/(?:[РС][\u0400-\u04ff]|В[«»]|в[Ђ-џ]|Г[—·])/g) || []).length;
       }
 
       function appendImage(parent, alt, rawSource, imageAssets) {

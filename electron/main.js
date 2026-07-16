@@ -440,8 +440,16 @@ function updateOverlay(payload) {
 
 function applyOverlayPayload(payload) {
   const apply = (win) => {
-    const data = JSON.stringify(payload).replace(/</g, "\\u003c");
-    win.webContents.executeJavaScript(`window.__setAssistantState(${data})`).catch(() => {});
+    const data = Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
+    const script = `
+      (() => {
+        const raw = atob(${JSON.stringify(data)});
+        const bytes = Uint8Array.from(raw, (char) => char.charCodeAt(0));
+        const payload = JSON.parse(new TextDecoder("utf-8").decode(bytes));
+        window.__setAssistantState(payload);
+      })()
+    `;
+    win.webContents.executeJavaScript(script).catch(() => {});
   };
 
   const win = overlayWindow && !overlayWindow.isDestroyed() ? overlayWindow : null;
@@ -884,7 +892,7 @@ async function runCodexForScreenshot(screenshotPath) {
 
   if (result.code !== 0) {
     const detail = getOutputTail(stderr || stdout);
-    throw new Error(detail || `Codex exited with code ${result.code}.`);
+    throw new Error(formatCodexExecutionError(detail, result.code));
   }
 
   if (existsSync(answerPath)) {
@@ -946,7 +954,7 @@ function spawnProcess(command, args, options = {}) {
     let timedOut = false;
     const maxOutputLength = 10 * 1024 * 1024;
     const appendOutput = (current, chunk) => {
-      const next = current + chunk.toString("utf8");
+      const next = current + decodeProcessOutput(chunk);
       return next.length > maxOutputLength ? next.slice(-maxOutputLength) : next;
     };
     const timer = options.timeoutMs ? setTimeout(() => {
@@ -960,7 +968,7 @@ function spawnProcess(command, args, options = {}) {
 
     child.stderr.on("data", (chunk) => {
       stderr = appendOutput(stderr, chunk);
-      options.onStderr?.(chunk.toString("utf8"));
+      options.onStderr?.(decodeProcessOutput(chunk));
     });
 
     child.on("error", (error) => {
@@ -978,6 +986,41 @@ function spawnProcess(command, args, options = {}) {
       resolve({ stdout, stderr, code, signal, timedOut });
     });
   });
+}
+
+function decodeProcessOutput(chunk) {
+  const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+  const utf8 = buffer.toString("utf8");
+
+  if (processOutputCorruptionScore(utf8) < 3) {
+    return utf8;
+  }
+
+  const utf16 = buffer.toString("utf16le");
+  return processOutputCorruptionScore(utf16) < processOutputCorruptionScore(utf8) ? utf16 : utf8;
+}
+
+function processOutputCorruptionScore(value) {
+  const text = String(value || "");
+  const controls = text.match(/[\u0000-\u0008\u000b\u000c\u000e-\u001a\u001c-\u001f]/g) || [];
+  const replacements = text.match(/\uFFFD/g) || [];
+  return controls.length * 4 + replacements.length * 3;
+}
+
+function formatCodexExecutionError(detail, code) {
+  const message = detail || `Codex exited with code ${code}.`;
+
+  if (/Wsl\/Service\/E_UNEXPECTED|Catastrophic failure|катастрофическ|разрушительн|непредвид/i.test(message)) {
+    return [
+      "WSL упал до запуска Codex.",
+      message,
+      "",
+      "Перезапусти WSL из PowerShell: wsl --shutdown",
+      "Потом проверь: wsl -d Ubuntu -- true"
+    ].join("\n");
+  }
+
+  return message;
 }
 
 function getLastMeaningfulLine(value) {
@@ -1021,7 +1064,7 @@ function getCodexFinalMessage(value) {
 }
 
 function normalizeCodexAnswer(value) {
-  let text = String(value || "").trim();
+  let text = repairMojibake(String(value || "").trim());
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const before = text;
@@ -1053,6 +1096,8 @@ function normalizeCodexAnswer(value) {
       text = decodeKnownEscapes(text);
     }
 
+    text = repairMojibake(text);
+
     if (text === before) {
       break;
     }
@@ -1070,6 +1115,66 @@ function decodeKnownEscapes(value) {
     .replace(/\\t/g, "\t")
     .replace(/\\"/g, "\"")
     .replace(/\\\\/g, "\\");
+}
+
+function repairMojibake(value) {
+  const text = String(value || "");
+
+  if (!looksLikeMojibake(text)) {
+    return text;
+  }
+
+  try {
+    const bytes = [];
+    const reverseMap = getWindows1251ReverseMap();
+
+    for (const char of text) {
+      const code = char.codePointAt(0);
+
+      if (code <= 0x7f) {
+        bytes.push(code);
+      } else if (reverseMap.has(char)) {
+        bytes.push(reverseMap.get(char));
+      } else {
+        return text;
+      }
+    }
+
+    const decoded = Buffer.from(bytes).toString("utf8");
+    return looksMoreReadable(decoded, text) ? decoded : text;
+  } catch {
+    return text;
+  }
+}
+
+let windows1251ReverseMap;
+
+function getWindows1251ReverseMap() {
+  if (windows1251ReverseMap) {
+    return windows1251ReverseMap;
+  }
+
+  const decoder = new TextDecoder("windows-1251");
+  windows1251ReverseMap = new Map();
+
+  for (let byte = 0; byte <= 255; byte += 1) {
+    windows1251ReverseMap.set(decoder.decode(Uint8Array.of(byte)), byte);
+  }
+
+  return windows1251ReverseMap;
+}
+
+function looksLikeMojibake(text) {
+  return mojibakeScore(text) >= 2;
+}
+
+function looksMoreReadable(candidate, original) {
+  return /[А-Яа-яЁё]/.test(candidate) && mojibakeScore(candidate) < mojibakeScore(original);
+}
+
+function mojibakeScore(text) {
+  const matches = String(text).match(/(?:[РС][\u0400-\u04ff]|В[«»]|в[Ђ-џ]|Г[—·])/g);
+  return matches ? matches.length : 0;
 }
 
 function getMissingPromptMessage() {
